@@ -1,0 +1,33 @@
+# Jenkins 初始配置（Configuration as Code）
+jenkins:
+  systemMessage: "mall 商城测试 CI/CD · 接口 + UI + 性能 一条流水线"
+  numExecutors: 2
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin123"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  quietPeriod: 2
+  scmCheckoutRetryCount: 1
+
+unclassified:
+  location:
+    url: "http://localhost:8081/"
+  timestamper:
+    allPipelines: true
+
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+  # Allure 命令行：复用镜像内预装的 /opt/allure，避免构建时再去 Maven 中央仓库下载
+  allure:
+    installations:
+      - name: "allure"
+        home: "/opt/allure"

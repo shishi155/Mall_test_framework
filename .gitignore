@@ -1,0 +1,38 @@
+# ---------- Python ----------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ---------- 运行时产物（体积大 / 含账号与请求报文，禁止上传）----------
+build/
+reports/
+allure-report/
+allure-results/
+test-results/
+*.jtl
+
+# ---------- 本地工具（第三方二进制，体积大）----------
+tools/
+
+# ---------- 前端构建产物（第三方项目版权）----------
+env/docker/web-dist/
+
+# ---------- 凭据与本地数据 ----------
+env/.env
+perf/data/*.csv
+*.pem
+*.key
+
+# ---------- IDE / OS ----------
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
+
+# ---------- 临时文件 ----------
+*.log
+*.tmp

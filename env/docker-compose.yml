@@ -1,0 +1,235 @@
+# =============================================================
+# mall 商城项目 —— 测试环境编排（一站式）
+# 用法: docker compose --env-file .env up -d
+# 说明: 被测应用镜像由 env/scripts/build-images.ps1 预先构建
+#       基础设施镜像直接拉取, 首次启动 mysql 会自动导入 mall.sql
+# =============================================================
+name: mall-test
+
+services:
+  # ---------------- 基础设施 ----------------
+  mysql:
+    image: mysql:8.0.36
+    container_name: mall-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --max-connections=500
+      - --slow-query-log=1
+      - --long-query-time=1
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: mall
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks: [mall-net]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: mall-redis
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [mall-net]
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:5.0
+    container_name: mall-mongodb
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks: [mall-net]
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: mall-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_UI_PORT}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    networks: [mall-net]
+    restart: unless-stopped
+
+  elasticsearch:
+    image: elasticsearch:7.17.3
+    container_name: mall-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      TZ: Asia/Shanghai
+    ports:
+      - "${ES_PORT}:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 40s
+    networks: [mall-net]
+    restart: unless-stopped
+
+  # ---------------- 被测应用 ----------------
+  mall-admin:
+    image: mall-test/mall-admin:local
+    container_name: mall-admin
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      TZ: Asia/Shanghai
+    ports:
+      - "${ADMIN_PORT}:8080"
+    networks: [mall-net]
+    restart: unless-stopped
+
+  mall-portal:
+    image: mall-test/mall-portal:local
+    container_name: mall-portal
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_DATA_MONGODB_HOST: mongodb
+      SPRING_DATA_MONGODB_PORT: "27017"
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "${PORTAL_PORT}:8085"
+    networks: [mall-net]
+    restart: unless-stopped
+
+  mall-search:
+    image: mall-test/mall-search:local
+    container_name: mall-search
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      TZ: Asia/Shanghai
+    ports:
+      - "${SEARCH_PORT}:8081"
+    networks: [mall-net]
+    restart: unless-stopped
+
+  # ---------------- 后台管理前端（含同源反向代理） ----------------
+  mall-admin-web:
+    image: mall-test/mall-admin-web:local
+    container_name: mall-admin-web
+    depends_on:
+      - mall-admin
+    ports:
+      - "${WEB_PORT}:80"
+    networks: [mall-net]
+    restart: unless-stopped
+
+  # ---------------- 可选工具（--profile tools 启用） ----------------
+  # 说明: MinIO 官方镜像已从 Docker Hub 下架, 国内镜像源多不可达;
+  #       仅在能拉到镜像时启用, 否则文件上传类接口用例走 skip。
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2023-09-04T19-57-37Z}
+    container_name: mall-minio
+    profiles: ["tools"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      TZ: Asia/Shanghai
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    networks: [mall-net]
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  mongo_data:
+  rabbitmq_data:
+  es_data:
+  minio_data:
+
+networks:
+  mall-net:
+    driver: bridge

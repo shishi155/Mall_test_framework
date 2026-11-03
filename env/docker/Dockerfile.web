@@ -1,0 +1,9 @@
+# mall-admin-web 静态站点镜像（构建上下文 = env/docker）
+# dist 由 scripts/build-images.ps1 拷贝到 env/docker/web-dist/
+FROM nginx:1.25-alpine
+
+RUN rm -f /etc/nginx/conf.d/default.conf
+COPY nginx-web.conf /etc/nginx/conf.d/default.conf
+COPY web-dist/ /usr/share/nginx/html/
+
+EXPOSE 80

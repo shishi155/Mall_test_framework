@@ -1,0 +1,7 @@
+configuration-as-code:latest
+workflow-aggregator:latest
+git:latest
+timestamper:latest
+ws-cleanup:latest
+build-timeout:latest
+allure-jenkins-plugin:latest

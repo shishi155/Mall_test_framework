@@ -1,0 +1,11 @@
+# mall-portal 运行镜像
+FROM eclipse-temurin:17-jre-jammy
+
+ENV TZ=Asia/Shanghai \
+    JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
+
+WORKDIR /app
+COPY mall-portal/target/mall-portal-1.0-SNAPSHOT.jar /app/app.jar
+
+EXPOSE 8085
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

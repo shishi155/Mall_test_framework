@@ -1,0 +1,33 @@
+﻿# 邮件通知配置（取消注释并填写后会立即生效；环境变量优先级更高）
+#
+# QQ 邮箱示例：
+#   smtp_host: smtp.qq.com
+#   smtp_port: 465
+#   smtp_security: ssl        # 465 用 ssl；587 用 starttls
+#   smtp_user: 12345678@qq.com
+#   smtp_pass: 授权码（QQ 邮箱 → 设置 → 账户 → 开启 SMTP 后生成的 16 位授权码，不是登录密码）
+#   mail_from: 12345678@qq.com
+#   mail_to: someone@example.com,other@example.com
+#
+# 163 邮箱示例：
+#   smtp_host: smtp.163.com
+#   smtp_port: 465
+#   smtp_security: ssl
+#   smtp_user: yourname@163.com
+#   smtp_pass: 授权码
+#   mail_from: yourname@163.com
+#   mail_to: someone@example.com
+#
+# notify_mode:
+#   auto      失败时发（默认）
+#   daily     每次都发（每日定时任务用）
+#   fail-only 只发失败
+notify_mode: auto
+
+smtp_host: ""
+smtp_port: 465
+smtp_security: ssl
+smtp_user: ""
+smtp_pass: ""
+mail_from: ""
+mail_to: ""

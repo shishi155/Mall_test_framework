@@ -1,0 +1,52 @@
+# mall 测试 CI（Jenkins 容器化）
+# 依赖：mall-test 环境已启动（网络 mall-test_mall-net），镜像已构建
+name: mall-jenkins
+
+services:
+  jenkins:
+    build:
+      context: ..
+      dockerfile: jenkins/Dockerfile
+    image: mall-test/jenkins:local
+    container_name: mall-jenkins
+    ports:
+      - "8081:8080"    # 8080 被 pagewatch 占用
+      - "50000:50000"
+    environment:
+      JAVA_OPTS: >-
+        -Djenkins.install.runSetupWizard=false
+        -Duser.timezone=Asia/Shanghai
+        -Dhudson.model.DownloadService.noSignatureCheck=true
+      JENKINS_UC: https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/
+      JENKINS_UC_DOWNLOAD: https://mirrors.tuna.tsinghua.edu.cn/jenkins/plugins/
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
+      MALL_ENV: ci
+      SELENIUM_REMOTE_URL: http://selenium:4444/wd/hub
+      TZ: Asia/Shanghai
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc.yaml:/var/jenkins_home/casc.yaml:ro
+      - ..:/var/jenkins_home/mall
+    networks:
+      - mall-net
+    restart: unless-stopped
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: mall-selenium
+    shm_size: 1gb
+    environment:
+      SE_NODE_MAX_SESSIONS: "2"
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+      TZ: Asia/Shanghai
+    networks:
+      - mall-net
+    restart: unless-stopped
+
+networks:
+  mall-net:
+    external: true
+    name: mall-test_mall-net
+
+volumes:
+  jenkins_home:

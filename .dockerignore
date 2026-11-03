@@ -1,0 +1,14 @@
+# Docker 构建上下文瘦身（Jenkins 镜像只需要 requirements.txt）
+.venv/
+build/
+reports/
+tools/
+.git/
+__pycache__/
+*.pyc
+.pytest_cache/
+testcases/*.xlsx
+defects/*.xlsx
+defects/*.docx
+env/docker/web-dist/
+node_modules/

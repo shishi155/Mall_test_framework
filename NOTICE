@@ -1,0 +1,31 @@
+NOTICE
+======
+
+本项目（Mall_test）是 mall 电商系统的**测试工程**，包含测试框架、测试用例、测试文档、
+性能脚本与 CI 配置。测试代码采用 MIT License（见 LICENSE）。
+
+第三方组件说明
+--------------
+
+1. 被测系统 mall（后端）
+   - 来源：https://github.com/macrozheng/mall
+   - 许可：Apache License 2.0
+   - 说明：本仓库**不包含**其源码。`env/mysql/init/01-mall.sql` 为其公开演示数据库
+     导出文件，用于初始化测试环境；本仓库未修改其内容。
+
+2. 被测前端 mall-admin-web
+   - 来源：https://github.com/macrozheng/mall-admin-web
+   - 许可：Apache License 2.0
+   - 说明：本仓库**不包含**其源码，`env/docker/web-dist/`（构建产物）已被 .gitignore 排除。
+
+3. 运行时依赖（通过 pip 安装，未随仓库分发）
+   - pytest / requests / allure-pytest / openpyxl / PyMySQL / selenium / python-docx 等。
+
+4. 测试工具（未随仓库分发）
+   - Apache JMeter（Apache License 2.0）、Jenkins（MIT）、Selenium、Allure（Apache License 2.0）。
+
+测试数据说明
+------------
+
+仓库中出现的手机号（如 13800000000）、账号（admin/macro123）均为**本地测试数据**，
+不对应真实个人或生产账号。

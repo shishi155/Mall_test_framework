@@ -1,0 +1,159 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 45, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        choice(name: 'SCOPE', choices: ['smoke', 'full'], description: '接口执行范围：smoke=冒烟(约 30s)，full=全量(约 30s)')
+        booleanParam(name: 'RUN_UI', defaultValue: true, description: '是否执行 Selenium UI 冒烟')
+        booleanParam(name: 'RUN_PERF', defaultValue: false, description: '是否执行性能基线（5 场景 × 30s，约 4 分钟）')
+        booleanParam(name: 'NOTIFY_DAILY', defaultValue: false, description: '成功也发送邮件（每日汇总用）')
+        booleanParam(name: 'NOTIFY_SELFTEST', defaultValue: false, description: '额外发送一封「通知自检」邮件（验证 SMTP 配置）')
+    }
+
+    environment {
+        MALL_ENV            = 'ci'
+        WORKDIR             = '/var/jenkins_home/mall'
+        PY                  = 'python3'
+        SELENIUM_REMOTE_URL = 'http://selenium:4444/wd/hub'
+        PYTHONIOENCODING    = 'utf-8'
+        TZ                  = 'Asia/Shanghai'
+    }
+
+    stages {
+        stage('环境检查') {
+            steps {
+                sh '''
+                  set -e
+                  cd "$WORKDIR"
+                  echo "== 版本 =="; python3 --version; jmeter --version 2>/dev/null | head -2 || true; allure --version || true
+                  echo "== 被测服务 =="
+                  curl -sf -o /dev/null -w "mall-admin  %{http_code}\\n" http://mall-admin:8080/v3/api-docs || echo "mall-admin 不可达"
+                  curl -sf -o /dev/null -w "mall-portal %{http_code}\\n" http://mall-portal:8085/home/content || echo "mall-portal 不可达"
+                  curl -sf -o /dev/null -w "mall-web    %{http_code}\\n" http://mall-admin-web/ || echo "mall-web 不可达"
+                  echo "== 用例数量 =="
+                  python3 -m pytest --collect-only -q 2>/dev/null | tail -1
+                '''
+            }
+        }
+
+        stage('接口冒烟') {
+            steps {
+                sh '''
+                  set -e
+                  cd "$WORKDIR"
+                  rm -rf reports/allure-results
+                  mkdir -p reports/junit && python3 -m pytest -m smoke -q --alluredir=reports/allure-results --clean-alluredir -p no:cacheprovider \\
+                      --junitxml=reports/junit/smoke.xml
+                '''
+            }
+        }
+
+        stage('接口全量') {
+            when { expression { params.SCOPE == 'full' } }
+            steps {
+                // 下单链路依赖 DB/Redis 状态，偶发失败自动重试一次再判定
+                retry(2) {
+                    sh '''
+                      set -e
+                      cd "$WORKDIR"
+                      python3 -m pytest tests/admin tests/portal tests/security tests/excel -q \
+                          --alluredir=reports/allure-results -p no:cacheprovider --disable-warnings \
+                          --junitxml=reports/junit/api-full.xml
+                    '''
+                }
+            }
+        }
+
+        stage('UI 冒烟') {
+            when { expression { params.RUN_UI } }
+            steps {
+                sh '''
+                  set -e
+                  cd "$WORKDIR"
+                  echo "Selenium: $SELENIUM_REMOTE_URL"
+                  python3 -m pytest tests/ui -q --alluredir=reports/allure-results -p no:cacheprovider \
+                      --junitxml=reports/junit/ui.xml
+                '''
+            }
+        }
+
+        stage('性能基线') {
+            when { expression { params.RUN_PERF } }
+            steps {
+                sh '''
+                  set -e
+                  cd "$WORKDIR"
+                  bash perf/run-perf.sh --threads 10 --duration 30 --tag ci
+                  python3 perf/summarize.py reports/perf || true
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                env.BUILD_STATUS = currentBuild.currentResult
+                env.BUILD_DURATION_SEC = "${(currentBuild.duration ?: 0) / 1000}".toString()
+            }
+            dir('/var/jenkins_home/mall') {
+                sh '''
+                  allure generate reports/allure-results -o reports/allure-report --clean >/dev/null 2>&1 || true
+                  echo "Allure 报告: /var/jenkins_home/mall/reports/allure-report/index.html"
+                '''
+                archiveArtifacts artifacts: 'reports/allure-report/**, reports/perf/**/report/**, reports/logs/**, reports/ui-evidence/**',
+                                 allowEmptyArchive: true, fingerprint: false
+                junit testResults: 'reports/junit/*.xml', allowEmptyResults: true
+
+                // Allure Jenkins 插件：生成报告 + 保存历史（趋势图），构建页出现「Allure Report」入口
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    allure includeProperties: false,
+                           jdk: '',
+                           results: [[path: 'reports/allure-results']]
+                }
+
+                script {
+                    // 邮件通知：失败必发；NOTIFY_DAILY=true 时成功也发（每日汇总）
+                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                        sh '''
+                          set +e
+                          python3 jenkins/notify.py \
+                            --status "${BUILD_STATUS:-UNKNOWN}" \
+                            --build "${BUILD_NUMBER:-0}" \
+                            --job "${JOB_NAME:-mall-cicd}" \
+                            --url "${BUILD_URL:-}" \
+                            --duration "${BUILD_DURATION_SEC:-0}" \
+                            $([ "${NOTIFY_DAILY:-false}" = "true" ] && echo "--daily")
+                          echo "通知结果见 reports/notify.log"
+                        '''
+                    }
+
+                    // 通知自检：额外发一封失败样式的邮件，用于验证 SMTP 配置
+                    if (params.NOTIFY_SELFTEST) {
+                        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                            sh '''
+                              set +e
+                              python3 jenkins/notify.py --status FAILURE --mode fail-only \
+                                --build "${BUILD_NUMBER:-0}" --job "${JOB_NAME:-mall-cicd}-selftest" \
+                                --url "${BUILD_URL:-}" --duration 0
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        success {
+            echo '流水线执行成功：接口 + UI（可选性能）全部通过'
+        }
+        failure {
+            echo '流水线执行失败，请查看 stage 日志与 Allure 报告（reports/allure-report）'
+        }
+    }
+}

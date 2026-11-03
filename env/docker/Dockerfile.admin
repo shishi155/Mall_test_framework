@@ -1,0 +1,12 @@
+# mall-admin 运行镜像
+# 构建上下文 = mall 源码根目录（jar 已由 scripts/build-images.ps1 用 maven 打好）
+FROM eclipse-temurin:17-jre-jammy
+
+ENV TZ=Asia/Shanghai \
+    JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
+
+WORKDIR /app
+COPY mall-admin/target/mall-admin-1.0-SNAPSHOT.jar /app/app.jar
+
+EXPOSE 8080
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

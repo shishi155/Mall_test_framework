@@ -1,0 +1,49 @@
+# mall 测试框架配置
+# 用法: pytest --env=local  (默认 local)；CI 中通过环境变量覆盖
+default_env: local
+
+envs:
+  local:
+    name: 本地容器环境
+    admin:
+      base_url: http://localhost:18080
+      timeout: 10
+    portal:
+      base_url: http://localhost:8085
+      timeout: 10
+    web:
+      base_url: http://localhost:8090
+    db:
+      host: 127.0.0.1
+      port: 13306
+      user: root
+      password: Root@123456
+      database: mall
+      charset: utf8mb4
+    accounts:
+      admin:
+        username: admin
+        password: macro123
+      # 前台会员由用例运行时动态注册，不使用固定账号
+
+  ci:
+    name: CI 环境（Jenkins 容器内）
+    admin:
+      base_url: http://mall-admin:8080
+      timeout: 15
+    portal:
+      base_url: http://mall-portal:8085
+      timeout: 15
+    web:
+      base_url: http://mall-admin-web
+    db:
+      host: mall-mysql
+      port: 3306
+      user: root
+      password: Root@123456
+      database: mall
+      charset: utf8mb4
+    accounts:
+      admin:
+        username: admin
+        password: macro123
