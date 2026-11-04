@@ -1,4 +1,4 @@
-﻿# mall 商城 —— 全栈测试工程
+﻿# mall 商城 —— 测试工程
 
 > 被测系统：`mall`（Spring Boot 3.5.14 + JDK 17 + MySQL/Redis/MongoDB/RabbitMQ/Elasticsearch）
 > 前端：`mall-admin-web`（Vue 3 + Vite + Element Plus）
