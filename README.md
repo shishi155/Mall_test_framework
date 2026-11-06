@@ -8,16 +8,6 @@
 
 ## 一、测试策略总览
 
-| 测试类型 | 工具/框架 | 覆盖重点 | 状态 |
-|---|---|---|---|
-| 环境管理 | Docker Compose | 一键起停被测系统全栈 | ✅ 阶段一完成 |
-| 接口/功能测试 | **pytest + requests + Allure** | portal 全业务链路 + admin 核心 P0 | ⏳ 阶段二/三 |
-| UI 冒烟 | **Selenium 4 + POM** | 后台管理端登录、商品、订单等少量主流程 | ⏳ 阶段四 |
-| 性能测试 | **JMeter 5.6.3** | 登录/首页/搜索/详情/下单链路 5 个场景，基线与 50 并发压力 | ✅ 阶段五完成 |
-| 安全测试 | OWASP ZAP + 手写安全用例 | SQL 注入、XSS、越权(IDOR)、JWT、未授权访问 | ⏳ 阶段六 |
-| CI/CD | **Jenkins（容器化）** | 拉码→起环境→冒烟→回归→UI→定时性能→Allure 发布 | ⏳ 阶段七 |
-| 文档建设 | Markdown + Allure + Excel | 计划/方案/用例/缺陷/报告/手册 | ⏳ 持续 |
-
 **取舍原则**：接口为主（覆盖率高、执行快、易维护），UI 只做核心链路冒烟（维护成本高），
 性能与安全按周期回归而非每次提交执行。
 
@@ -134,13 +124,12 @@ cd scripts
   - 基线 10 并发：首页 584 TPS / 搜索 922 TPS / 详情 587 TPS / 登录 70 TPS（BCrypt 约 130ms）
   - 压力 50 并发：首页 629 TPS / 登录 82 TPS（RT 508ms，CPU 打满，扩展性差）
   - 输出：JMeter HTML 报告 + `reports/perf/summary.md` + 《04-性能测试报告》
-- [ ] 阶段六：安全测试深化（ZAP 扫描）— 按用户要求暂缓
-- [x] **阶段七：Jenkins 容器化 CI/CD**
+- [x] **阶段六：Jenkins 容器化 CI/CD**
   - Jenkins 2.541.3 + Selenium 4 容器，同 `mall-test_mall-net` 网络；测试在 Jenkins 容器内执行（无 DinD）
   - 流水线：环境检查 → 接口冒烟 → 接口全量 → UI 冒烟 → 性能基线（可选）→ Allure 归档
   - 实测：#1（smoke+UI）153.7s SUCCESS；#2（full+UI+perf 5 场景）496s SUCCESS；#3（full 接口）158.4s SUCCESS，全量 131 passed / 20 xfail
   - 交付《05-CICD手册》+ `jenkins/` 全套资产（Dockerfile/plugins/CasC/Jenkinsfile/建任务与触发脚本）
-- [x] **阶段七补充：定时任务 + 邮件通知**
+- [x] **阶段七：定时任务 + 邮件通知**
   - 3 个 Job：`mall-cicd`（手动）、`mall-cicd-daily`（工作日 09:00 全量+UI，成功发汇总）、`mall-cicd-nightly`（每日 02:00 全量+UI+性能，失败才发）
   - 定时触发器实测：自检任务按 `*/2 * * * *` 在 00:04:00 自动触发（原因 `Started by timer`）
   - 邮件：QQ/163 SMTP，失败必发、成功按 `NOTIFY_DAILY` 汇总；通知失败不影响构建
